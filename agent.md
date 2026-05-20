@@ -1,268 +1,149 @@
-# Agent Activity Log
+# Agent Guide
 
-## Goal
+This file is repository intelligence for future AI/code agents working on `seb-win-refactoring`.
 
-Rebrand the Safe Exam Browser (SEB) Windows application to **Xolock** by **Xobin Technologies Pvt. Ltd.**
+## Repository Purpose
 
-## Environment
+`seb-win-refactoring` is a Windows-only .NET Framework 4.8 application derived from Safe Exam Browser and branded as Xolock. It contains the runtime shell, client UI, Chromium browser integration, Windows service, configuration tool, reset utility, shared contracts, unit tests, and WiX installer projects.
 
-- Workspace: `D:\seb-win-refactoring`
-- Solution: `SafeExamBrowser.sln`
-- Build target: `Debug|x64`
-- Source logo: `D:\seb-win-refactoring\XobinLogo.png`
+The active branch for this work is `xolock-refactoring`.
 
----
+## Important Directories
 
-## STEP 1 — Branding Discovery (COMPLETED)
+- `SafeExamBrowser.sln` is the root Visual Studio solution.
+- `SafeExamBrowser.Runtime` builds the main `SafeExamBrowser.exe` runtime.
+- `SafeExamBrowser.Client` builds the user-facing client and copies browser output into runtime output during post-build.
+- `SafeExamBrowser.Browser` contains Chromium/browser integration.
+- `SafeExamBrowser.Service` contains the Windows service.
+- `SebWindowsConfig` contains the WinForms configuration tool.
+- `SafeExamBrowser.ResetUtility` contains the reset utility.
+- `SafeExamBrowser.*.Contracts` projects define shared interfaces/contracts.
+- `*.UnitTests` projects use MSTest.
+- `Setup` is the WiX MSI project.
+- `SetupBundle` is the WiX bootstrapper bundle project.
+- `.github/workflows` contains CI, release, CodeQL, and issue maintenance workflows.
+- `.github/scripts/build-installer.ps1` is the GitHub Actions WiX packaging helper.
+- `.github/SECRETS.md` documents required repository secrets.
 
-Scanned the entire repository and cataloged all branding locations:
-- 49 AssemblyInfo.cs files
-- 14 I18n XML resource files (en, de, fr, es, it, nl, ro, tr, zh, ja, ru, sv, et, id)
-- 10 .resx resource files
-- 163 XAML UI files
-- 11 WiX installer files (.wxs/.wxi/.wxl)
-- 18 image/icon assets (.ico, .png, .bmp)
-- C# code-behind files with branding strings
-- Service installer with display name
-- License.rtf in installer resources
+## Build System Overview
 
-## STEP 2 — Brand Assets Generated (COMPLETED)
+This is a classic .NET Framework repository, not SDK-style .NET Core. Prefer `nuget restore` and `msbuild` over `dotnet build` for reliable CI behavior.
 
-All 18 image/icon assets generated from XobinLogo.png:
+Common restore command:
 
-| Asset | Path | Size |
-|-------|------|------|
-| Main app ICO | SafeExamBrowser.Client\SafeExamBrowser.ico | 370 KB |
-| Runtime ICO | SafeExamBrowser.Runtime\SafeExamBrowser.ico | 370 KB |
-| Service ICO | SafeExamBrowser.Service\SafeExamBrowser.ico | 370 KB |
-| Desktop UI ICO | SafeExamBrowser.UserInterface.Desktop\Images\SafeExamBrowser.ico | 370 KB |
-| Desktop Log ICO | SafeExamBrowser.UserInterface.Desktop\Images\LogNotification.ico | 93 KB |
-| Mobile UI ICO | SafeExamBrowser.UserInterface.Mobile\Images\SafeExamBrowser.ico | 370 KB |
-| Mobile Log ICO | SafeExamBrowser.UserInterface.Mobile\Images\LogNotification.ico | 93 KB |
-| Reset ICO | SafeExamBrowser.ResetUtility\ResetUtility.ico | 59 KB |
-| Config Tool ICO | SebWindowsConfig\ConfigurationTool.ico | 53 KB |
-| Setup App ICO | Setup\Resources\Application.ico | 370 KB |
-| Setup Config ICO | Setup\Resources\ConfigurationFile.ico | 370 KB |
-| Setup Tool ICO | Setup\Resources\ConfigurationTool.ico | 53 KB |
-| Setup Reset ICO | Setup\Resources\ResetUtility.ico | 59 KB |
-| Desktop Splash | SafeExamBrowser.UserInterface.Desktop\Images\SplashScreen.png | 40 KB |
-| Mobile Splash | SafeExamBrowser.UserInterface.Mobile\Images\SplashScreen.png | 40 KB |
-| Installer Logo | SetupBundle\Resources\Logo.png | 9 KB |
-| Installer Banner | Setup\Resources\Banner.bmp | 86 KB |
-| Installer Dialog | Setup\Resources\Dialog.bmp | 462 KB |
+```powershell
+nuget restore SafeExamBrowser.sln -NonInteractive
+```
 
-## STEP 3 — Application Metadata Updated (COMPLETED)
+Common release build targets:
 
-47 AssemblyInfo.cs files updated:
-- `AssemblyDescription`: "Safe Exam Browser" → "Xolock"
-- `AssemblyCompany`: "ETH Zürich" → "Xobin Technologies Pvt. Ltd."
-- `AssemblyCopyright`: "Copyright © 2026 ETH Zürich, IT Services" → "Copyright © 2026 Xobin Technologies Pvt. Ltd."
-- `AssemblyTitle` (Runtime): "Safe Exam Browser" → "Xolock"
-- `AssemblyProduct` (Runtime): "Safe Exam Browser" → "Xolock"
-- `AssemblyTitle` (Config): "SEB Configuration Tool" → "Xolock Configuration Tool"
+```powershell
+msbuild SafeExamBrowser.Browser\SafeExamBrowser.Browser.csproj /m /p:Configuration=Release /p:Platform=x64 /p:SignOutput=false
+msbuild SafeExamBrowser.Runtime\SafeExamBrowser.Runtime.csproj /m /p:Configuration=Release /p:Platform=x64 /p:SignOutput=false
+msbuild SafeExamBrowser.Client\SafeExamBrowser.Client.csproj /m /p:Configuration=Release /p:Platform=x64 /p:SignOutput=false
+msbuild SebWindowsConfig\SebWindowsConfig.csproj /m /p:Configuration=Release /p:Platform=x64 /p:SignOutput=false
+msbuild SafeExamBrowser.ResetUtility\SafeExamBrowser.ResetUtility.csproj /m /p:Configuration=Release /p:Platform=x64 /p:SignOutput=false
+msbuild SafeExamBrowser.Service\SafeExamBrowser.Service.csproj /m /p:Configuration=Release /p:Platform=x64 /p:SignOutput=false
+```
 
-## STEP 4 — UI Branding Updated (COMPLETED)
+Build both `x64` and `x86` when producing installers, because `SetupBundle\Bundle.wxs` chains both MSI packages.
 
-### XAML Files
-- RuntimeWindow title: "Safe Exam Browser" → "Xolock" (Desktop + Mobile)
-- LockScreen heading: "SEB LOCKED" → "XOLOCK LOCKED" (Desktop + Mobile)
+## CI/CD Flow
 
-### I18n XML Resources (14 files)
-All user-facing "SEB" and "Safe Exam Browser" strings replaced with "Xolock" across all 14 language files.
-Preserved: SEB-Server, SEB Verificator (separate products)
+The workflow architecture was adapted from `xolock-unified-browser`, which used a single Windows Electron Forge workflow:
 
-### .resx Files (5 files)
-- SEBUIStrings.resx + de.resx: all product name strings updated
-- SebPasswordDialogForm.resx + de.resx: dialog title updated
-- SebWindowsConfigForm.resx: tooltip descriptions updated
+1. Checkout.
+2. Set up package manager cache.
+3. Build/package application output.
+4. Sign internal binaries.
+5. Create installer from signed output.
+6. Sign final installer.
+7. Zip artifacts.
+8. Upload to Google Cloud Storage.
 
-### WinForms Designer Files
-- SebWindowsConfigForm.Designer.cs: form title, labels, tooltips, dialog titles updated
-- AdditionalResources.Designer.cs: tooltip updated
+The .NET equivalent is:
 
-### C# Code Files
-- SebWindowsConfigForm.cs: status bar text, file dialog filter
-- Installer.cs: Service DisplayName → "Xolock Service"
-- Various code-behind files: user-facing string literals updated
+1. Checkout.
+2. Set up NuGet/MSBuild and cache `packages/`.
+3. Restore `packages.config` dependencies.
+4. Build .NET Framework application projects.
+5. Run MSTest unit tests for CI.
+6. Sign built EXE/DLL outputs with Azure Trusted Signing in release runs.
+7. Harvest signed outputs into WiX MSI packages.
+8. Build WiX bootstrapper bundle.
+9. Sign MSI and bundle artifacts.
+10. Create portable and installer ZIP archives plus `SHA256SUMS.txt`.
+11. Upload GitHub Actions artifacts, optionally upload to GCS, and create GitHub Releases on `v*.*.*` tags.
 
-## STEP 5 — Icons & Images Replaced (COMPLETED)
+## Workflow Purposes
 
-All 18 image assets replaced with Xobin-branded versions (see Step 2).
+- `ci.yml`: PR and branch validation for `xolock-refactoring`; builds x64 app/test projects, runs tests, uploads portable artifact.
+- `release.yml`: release orchestration for `xolock-refactoring`, `v*.*.*` tags, and manual dispatch; builds x64/x86, signs, packages, uploads.
+- `codeql.yml`: C# CodeQL analysis with an explicit MSBuild build to avoid WiX local signing hooks.
+- `issues.yml`: scheduled/manual stale issue maintenance.
 
-## STEP 6 — Installer Branding Updated (COMPLETED)
+## Release Flow
 
-- `Setup\Product.wxs`: Product Name, Manufacturer, Feature Title, Exit dialog text
-- `Setup\Shortcuts.wxs`: "Safe Exam Browser" → "Xolock", "SEB Configuration Tool" → "Xolock Configuration Tool", "SEB Reset Utility" → "Xolock Reset Utility"
-- `Setup\Directories.wxs`: Install folder "SafeExamBrowser" → "Xolock", Start menu folder
-- `SetupBundle\Bundle.wxs`: Bundle Name
-- `Setup\Resources\License.rtf`: Product name and company references
+Use semantic version tags matching `v*.*.*` for production releases. The release workflow can run on branch pushes, tags, or manual dispatch. GitHub Release creation is gated to `v*.*.*` tags.
 
-## STEP 7 — Taskbar & System Tray Branding (COMPLETED)
+Release artifacts:
 
-- Taskbar window icon: replaced with Xobin logo ICO
-- RuntimeWindow title: "Xolock"
-- Service DisplayName: "Xolock Service"
-- All window icons use the new SafeExamBrowser.ico (Xobin-branded)
+- `Xolock-Windows-x64-portable.zip`
+- `Xolock-Windows-Installers.zip`
+- `SHA256SUMS.txt`
+- `Setup\bin\x64\Release\Setup.msi`
+- `Setup\bin\x86\Release\Setup.msi`
+- `SetupBundle\bin\x64\Release\SetupBundle.exe`
 
-## STEP 8 — Application Blacklist Additions (COMPLETED)
+## Packaging Strategy
 
-25 new entries added to `SafeExamBrowser.Configuration\ConfigurationData\DataValues.cs`:
+The repository already contains WiX installer projects, so CI should not introduce Electron/Squirrel packaging. The correct packaging path is WiX MSI plus WiX Burn bootstrapper.
 
-| Application | Executable |
-|-------------|-----------|
-| Quiz Solver AI | QuizSolverAI.exe |
-| QuizSolve | QuizSolve.exe |
-| Test Bro | TestBro.exe |
-| Apex Vision AI | ApexVisionAI.exe |
-| Mindko | Mindko.exe |
-| College Tools | CollegeTools.exe |
-| Answer.AI | AnswerAI.exe |
-| Quizzard | Quizzard.exe |
-| QuizWiz | QuizWiz.exe |
-| QuestionAI | QuestionAI.exe |
-| Merlin | Merlin.exe |
-| Sider | Sider.exe |
-| SnapGPT | SnapGPT.exe |
-| Homework Helper | HomeworkHelper.exe |
-| Quiz Wizard | QuizWizard.exe |
-| AnswersAI | AnswersAI.exe |
-| Study Genie | StudyGenie.exe |
-| Study Point AI | StudyPointAI.exe |
-| Quizgecko | Quizgecko.exe |
-| Quiz Genius AI | QuizGeniusAI.exe |
-| Perplexity | Perplexity.exe |
-| Microsoft Copilot | Copilot.exe |
-| AI Homework Helper | AIHomeworkHelper.exe |
-| Canvas Quiz Solver | CanvasQuizSolver.exe |
-| ChatGPT | ChatGPT.exe |
+The checked-in WiX projects contain legacy hardcoded `signtool` hooks using a local certificate thumbprint. Do not depend on those in GitHub Actions. Use `.github/scripts/build-installer.ps1`, which regenerates harvested component files and builds WiX artifacts with local signing hooks disabled. Release signing is handled by Azure Trusted Signing workflow steps.
 
-All entries have `AutoTerminate = true`.
+## Required Secrets
 
-## STEP 9 — Build Verification (COMPLETED)
+Azure Trusted Signing:
 
-Two successful builds (exit code 0):
-- Initial build after all branding changes
-- Final rebuild after I18n cleanup
+- `AZURE_TENANT_ID`
+- `AZURE_CLIENT_ID`
+- `AZURE_CLIENT_SECRET`
+- `AZURE_ENDPOINT`
+- `AZURE_CODE_SIGNING_NAME`
+- `AZURE_CERT_PROFILE_NAME`
 
-Only pre-existing warnings (MSB3884 ruleset + integrity module).
-No compile errors. No missing resources.
+Google Cloud Storage:
 
-## STEP 10 — Final Validation
+- `GCP_SA_KEY`
+- `GCS_BUCKET_NAME`
 
-### Remaining "SEB" References (Intentional)
+`GITHUB_TOKEN` is provided by GitHub Actions and is used for issue maintenance and GitHub Releases.
 
-These are categorized and intentionally preserved:
+## Important Scripts
 
-**Internal References (Namespaces/APIs):**
-- `SafeExamBrowser.*` namespaces — deeply coupled, unsafe to rename
-- `nameof(SafeExamBrowser)` — used for service name, mutex names
-- `AppConfig.BASE_ADDRESS` = `net.pipe://localhost/safeexambrowser`
-- `AppConfig.CLIENT_MUTEX_NAME` = `safe_exam_browser_client_mutex`
-- Solution/project file names (SafeExamBrowser.sln, etc.)
+- `.github/scripts/build-installer.ps1` locates `heat.exe` and `msbuild.exe`, regenerates WiX component fragments from application output directories, builds `Setup.wixproj`, and optionally builds `SetupBundle.wixproj`.
+- `generate-branding.ps1` is a local branding helper from prior rebranding work. Do not run it casually because it may overwrite image assets.
 
-**Compatibility Requirements:**
-- `seb://` and `sebs://` URI schemes — protocol handlers
-- `.seb` file extension — configuration file format
-- `SebClientSettings.seb` — default config file name
-- `application/seb` MIME type
+## Common Maintenance Tasks
 
-**Third-Party Product References:**
-- "SEB-Server" — separate server product, kept as-is
-- "SEB Verificator" — separate verification app, kept as-is
-- `safeexambrowser.org` URLs — kept as-is
+- Keep package cache keys tied to `packages.config`, `.csproj`, and `.sln` changes.
+- If adding a new deployable executable, include it in the release build and signing stages.
+- If changing WiX component layout, update `.github/scripts/build-installer.ps1` to harvest the correct directories.
+- If changing branch strategy, update `ci.yml`, `release.yml`, and `codeql.yml` together.
+- If adding new required secrets, update `.github/SECRETS.md` and this file.
 
-**Variable/Control Names (Code Identifiers):**
-- `lblSEBPassword`, `txtSEBPassword` — WinForms control names
-- `openFileDialogSebConfigFile` — WinForms control name
-- Various `Seb*` prefixed variable/class names
+## Known Caveats
 
-### Files Not Renamed (Safe Decision)
-- Solution file: `SafeExamBrowser.sln`
-- Project folders: `SafeExamBrowser.*`
-- Output executables: `SafeExamBrowser.exe`, `SafeExamBrowser.Client.exe`
-- These are internal identifiers and renaming would break many cross-references
+- The solution and many namespaces remain `SafeExamBrowser.*`; renaming them is high risk and not required for Xolock branding.
+- `.seb`, `seb://`, `sebs://`, SEB-Server, and SEB Verificator references may be compatibility surfaces and should not be blindly renamed.
+- Production integrity requires native modules under `C:\SEB\seb_x64.dll` and/or `C:\SEB\seb_x86.dll`.
+- WiX bundle creation expects both x64 and x86 MSI outputs.
+- GitHub-hosted runners need WiX installed before packaging.
+- The app is Windows-only; use `windows-latest` for build/release jobs.
 
----
+## Branch Conventions
 
-## Previous Session Notes
-
-- Debug integrity bypass in `SafeExamBrowser.Runtime\Operations\Bootstrap\ApplicationIntegrityOperation.cs` is preserved
-- The proper production fix is to provide the native integrity module `C:\SEB\seb_x64.dll`
-
----
-
-## STEP 11 — Applicant Landing Page and Force Quit (COMPLETED)
-
-Implemented a browser-first applicant landing flow before assessment URLs load:
-- Added `SafeExamBrowser.Browser\Content\LandingPageFactory.cs` to generate a local landing page asking for full name and email.
-- Updated browser startup URL generation so the selected start URL, including command-line assessment links such as Xobin invite URLs, is wrapped by the landing page first.
-- On form submit, applicant details are saved temporarily to `applicant.json` in the app temp directory and the browser then navigates to the original assessment URL unchanged.
-- Expanded the landing page with assessment ID and invite token fields that build `http://xobinteam.xobin.com/wc/assessment/<assessment_id>?inviteToken=<token>`.
-- Added a direct invite link field; if populated, it takes priority and redirects the candidate to that specific invite URL.
-- Updated request filtering so the generated local `data:` landing page is not blocked while preserving filtering for the final assessment URL.
-- Changed the default start URL from `https://www.safeexambrowser.org/start` to `https://xobinteam.xobin.com/`, so default launches show the Xolock applicant landing flow instead of the Safe Exam Browser page.
-- Updated `SebWindowsConfig\SEBSettings.cs` so newly generated/default configuration files also use `https://xobinteam.xobin.com/` instead of the SEB unconfigured page.
-- Added runtime normalization in `SafeExamBrowser.Configuration\ConfigurationData\DataProcessor.cs` so old `safeexambrowser.org/start` configuration values are replaced with the Xolock landing start target.
-
-Force quit check:
-- Existing force quit shortcut is `Ctrl+Q`, implemented by `SafeExamBrowser.UserInterface.Shared\Activators\TerminationActivator.cs`.
-- Ensured termination remains enabled during configuration processing so the `Ctrl+Q` shortcut stays available even when loaded settings disable normal termination.
-
-Verification:
-- IDE lints were clean for all changed files.
-- Full build could not be run in this shell because neither `msbuild` nor `dotnet` is available on PATH, and Visual Studio MSBuild was not found via `vswhere`.
-
-## STEP 12 — Configuration Tool Launcher (COMPLETED)
-
-- Built and launched the configuration tool from `SebWindowsConfig\bin\x64\Debug\SEBConfigTool.exe`.
-- Added `sebconfig.bat` at the repository root to start the SEB/Xolock configuration tool.
-- The launcher checks whether `SEBConfigTool.exe` exists and asks to build `SebWindowsConfig` in `Debug|x64` if missing.
-
-## STEP 13 — Landing Invite Configuration File (COMPLETED)
-
-- Added `xolock-landing-invite.seb` at the repository root.
-- The configuration uses the Xobin invite URL as `startURL`, so the Xolock landing page opens first and redirects to the invite link after applicant details are submitted.
-- Enabled fullscreen browser mode and create-new-desktop kiosk mode.
-- Kept `allowQuit` enabled so the existing `Ctrl+Q` force-quit shortcut remains available.
-- Updated `start.bat` to convert an existing `.seb` argument to an absolute path before launching, because the runtime ignores relative command-line configuration paths.
-- Reworked `xolock-landing-invite.seb` to start on `https://xobinteam.xobin.com/` in windowed mode so the candidate enters assessment ID and invite token before navigation.
-- Added `configstart.bat` to launch `SafeExamBrowser.exe` directly with `xolock-landing-invite.seb`.
-- Updated `xolock-landing-invite.seb` to start directly at `https://xobinteam.xobin.com/wc/assessment/19TSU98PJSJC?inviteToken=A6F1D020EC27AB8BGKGL66C4499FA9BD1679B5DE96324B829AE68693DDB888BA0A1B1BA939`.
-- Adjusted landing-page wrapping so Xobin assessment invite URLs open directly while neutral Xobin URLs still show the applicant landing form.
-- Reverted `xolock-landing-invite.seb` back to neutral startup URL `https://xobinteam.xobin.com/` with `browserViewMode=0`, `createNewDesktop=false`, and `killExplorerShell=false` so startup remains windowed and non-kiosk before the candidate enters tokens.
-
-## STEP 14 — Landing Page Removed (COMPLETED)
-
-- Removed the generated applicant landing page from the browser project.
-- Removed browser-side applicant data handling and temporary `applicant.json` persistence.
-- Restored browser startup to load the configured `startURL` directly.
-- Updated `xolock-landing-invite.seb` to open the Xobin assessment invite link directly while keeping `browserViewMode=0`, `createNewDesktop=false`, and `killExplorerShell=false`.
-- Updated `xolock-landing-invite.seb` to complete fullscreen locked mode: `browserViewMode=1`, `createNewDesktop=true`, `showTaskBar=false`, and `mainBrowserWindowWidth/Height=100%`.
-
-## STEP 15 — Windowed Landing Page With Assessment Redirect (COMPLETED)
-
-- Added standalone landing page assets at the repository root:
-  - `xolock-landing.html`
-  - `xolock-landing.css`
-  - `xolock-landing.js`
-- The landing form collects candidate name, email, assessment ID, and invite token.
-- The candidate can alternatively paste a complete link in the required format:
-  `https://xobinteam.xobin.com/wc/assessment/<assessment_id>?inviteToken=<invite_token>`.
-- The JavaScript validates the link format, stores the entered candidate/assessment data in browser `localStorage`, and redirects to the resolved Xobin assessment URL.
-- Updated `xolock-landing-invite.seb` so `startURL` opens `file:///D:/seb-win-refactoring/xolock-landing.html`.
-- Kept startup in non-kiosk browser-window mode with `browserViewMode=0`, `createNewDesktop=false`, `showTaskBar=true`, and a `900x760` main browser window so the candidate sees the landing form on the normal desktop.
-- Added `EnterFullscreenMode()` to the browser window UI contract and implementations.
-- Updated browser navigation handling so the main browser window switches to fullscreen kiosk-style mode when it navigates to a valid Xobin assessment URL with an `inviteToken`.
-
-## STEP 16 — Landing Clipboard and Browser Window Icon (COMPLETED)
-
-- Updated `xolock-landing-invite.seb` to allow the normal system clipboard by setting `enablePrivateClipboard=false` and `clipboardPolicy=0`, so candidates can copy/paste invite links or tokens from their email while the landing form is in non-kiosk mode.
-- Updated clipboard monitoring so the system clipboard is not cleared on startup or shutdown when the active policy is `Allow`.
-- Added `XobinLogo.png` as a Desktop and Mobile UI resource.
-- Updated the Desktop and Mobile browser window XAML title-bar icon from `SafeExamBrowser.ico` to `XobinLogo.png`, replacing the visible SEB logo beside the window buttons.
-
-## STEP 17 — Post-Landing Kiosk Transition (COMPLETED)
-
-- Strengthened the existing Xobin assessment URL detection in the browser window flow: after the landing form redirects to `https://xobinteam.xobin.com/wc/assessment/...?...inviteToken=...`, the main browser window enters fullscreen mode automatically.
-- Updated Desktop and Mobile fullscreen handling to behave like kiosk mode after the redirect by covering the full primary screen, removing the window frame, hiding the taskbar entry, keeping the window topmost, and collapsing the browser toolbar.
-- Preserved the non-kiosk windowed landing form startup in `xolock-landing-invite.seb`; kiosk-style fullscreen now applies only after the invite URL is reached.
+- Active refactoring branch: `xolock-refactoring`.
+- Release tags: `v*.*.*`.
+- PR validation should target `xolock-refactoring`.
+- Avoid Electron-specific CI commands such as `npm ci`, `electron-forge package`, `electron-forge make`, or Squirrel maker steps in this repository.

@@ -1,0 +1,112 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - xolock-refactoring
+  pull_request:
+    branches:
+      - xolock-refactoring
+  workflow_dispatch:
+
+env:
+  SOLUTION_FILE: SafeExamBrowser.sln
+  BUILD_CONFIGURATION: Release
+  BUILD_PLATFORM: x64
+
+jobs:
+  validate:
+    name: Validate .NET Build
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Set up NuGet
+        uses: NuGet/setup-nuget@v2
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.config', '**/*.sln', '**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore packages
+        run: nuget restore $env:SOLUTION_FILE -NonInteractive
+        shell: pwsh
+
+      - name: Build application projects
+        run: |
+          $projects = @(
+            "SafeExamBrowser.Browser\SafeExamBrowser.Browser.csproj",
+            "SafeExamBrowser.Runtime\SafeExamBrowser.Runtime.csproj",
+            "SafeExamBrowser.Client\SafeExamBrowser.Client.csproj",
+            "SebWindowsConfig\SebWindowsConfig.csproj",
+            "SafeExamBrowser.ResetUtility\SafeExamBrowser.ResetUtility.csproj",
+            "SafeExamBrowser.Service\SafeExamBrowser.Service.csproj"
+          )
+
+          foreach ($project in $projects) {
+            msbuild $project /m /p:Configuration=$env:BUILD_CONFIGURATION /p:Platform=$env:BUILD_PLATFORM /p:SignOutput=false
+          }
+        shell: pwsh
+
+      - name: Build unit test projects
+        run: |
+          $projects = Get-ChildItem -Path . -Recurse -Filter "*.UnitTests.csproj" | Select-Object -ExpandProperty FullName
+          foreach ($project in $projects) {
+            msbuild $project /m /p:Configuration=$env:BUILD_CONFIGURATION /p:Platform=$env:BUILD_PLATFORM /p:SignOutput=false
+          }
+        shell: pwsh
+
+      - name: Run unit tests
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vstest = & $vswhere -latest -products * -requires Microsoft.VisualStudio.PackageGroup.TestTools.Core -find **\vstest.console.exe | Select-Object -First 1
+          if (-not $vstest) {
+            throw "vstest.console.exe was not found on the runner."
+          }
+
+          $testDlls = Get-ChildItem -Path . -Recurse -Filter "*UnitTests.dll" |
+            Where-Object { $_.FullName -match "\\bin\\$env:BUILD_PLATFORM\\$env:BUILD_CONFIGURATION\\" } |
+            Select-Object -ExpandProperty FullName
+
+          if (-not $testDlls) {
+            Write-Host "No unit test assemblies found for $env:BUILD_PLATFORM|$env:BUILD_CONFIGURATION."
+            exit 0
+          }
+
+          & $vstest $testDlls /Logger:trx /ResultsDirectory:TestResults
+        shell: pwsh
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ env.BUILD_PLATFORM }}
+          path: TestResults/**/*.trx
+          if-no-files-found: ignore
+
+      - name: Create portable application archive
+        run: |
+          $source = "SafeExamBrowser.Runtime\bin\$env:BUILD_PLATFORM\$env:BUILD_CONFIGURATION"
+          if (-not (Test-Path $source)) {
+            throw "Build output not found: $source"
+          }
+
+          New-Item -ItemType Directory -Force -Path artifacts | Out-Null
+          Compress-Archive -Path "$source\*" -DestinationPath "artifacts\Xolock-Windows-$env:BUILD_PLATFORM-portable.zip" -Force
+        shell: pwsh
+
+      - name: Upload portable artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: xolock-windows-${{ env.BUILD_PLATFORM }}-portable
+          path: artifacts/*.zip
+          if-no-files-found: error

@@ -1,0 +1,314 @@
+name: Build and Release
+
+on:
+  push:
+    branches:
+      - xolock-refactoring
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      publish_to_gcs:
+        description: "Upload release archives to Google Cloud Storage"
+        required: false
+        default: true
+        type: boolean
+      create_github_release:
+        description: "Create or update a GitHub release when running on a v* tag"
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+env:
+  BUILD_CONFIGURATION: Release
+  AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+  AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+  AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+  AZURE_ENDPOINT: ${{ secrets.AZURE_ENDPOINT }}
+  AZURE_CODE_SIGNING_NAME: ${{ secrets.AZURE_CODE_SIGNING_NAME }}
+  AZURE_CERT_PROFILE_NAME: ${{ secrets.AZURE_CERT_PROFILE_NAME }}
+  GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+  GCS_BUCKET_NAME: ${{ secrets.GCS_BUCKET_NAME }}
+
+jobs:
+  release:
+    name: Package Windows Release
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Set up NuGet
+        uses: NuGet/setup-nuget@v2
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.config', '**/*.sln', '**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Install WiX Toolset
+        run: choco install wixtoolset -y --no-progress
+        shell: pwsh
+
+      - name: Restore packages
+        run: nuget restore SafeExamBrowser.sln -NonInteractive
+        shell: pwsh
+
+      - name: Build x64 application binaries
+        run: |
+          $env:BUILD_PLATFORM = "x64"
+          $projects = @(
+            "SafeExamBrowser.Browser\SafeExamBrowser.Browser.csproj",
+            "SafeExamBrowser.Runtime\SafeExamBrowser.Runtime.csproj",
+            "SafeExamBrowser.Client\SafeExamBrowser.Client.csproj",
+            "SebWindowsConfig\SebWindowsConfig.csproj",
+            "SafeExamBrowser.ResetUtility\SafeExamBrowser.ResetUtility.csproj",
+            "SafeExamBrowser.Service\SafeExamBrowser.Service.csproj"
+          )
+
+          foreach ($project in $projects) {
+            msbuild $project /m /p:Configuration=$env:BUILD_CONFIGURATION /p:Platform=$env:BUILD_PLATFORM /p:SignOutput=false
+          }
+        shell: pwsh
+
+      - name: Sign x64 application binaries
+        if: ${{ env.AZURE_TENANT_ID != '' && env.AZURE_CLIENT_ID != '' && env.AZURE_CLIENT_SECRET != '' && env.AZURE_ENDPOINT != '' && env.AZURE_CODE_SIGNING_NAME != '' && env.AZURE_CERT_PROFILE_NAME != '' }}
+        uses: Azure/trusted-signing-action@v0.5.1
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ secrets.AZURE_ENDPOINT }}
+          trusted-signing-account-name: ${{ secrets.AZURE_CODE_SIGNING_NAME }}
+          certificate-profile-name: ${{ secrets.AZURE_CERT_PROFILE_NAME }}
+          files-folder: SafeExamBrowser.Runtime/bin/x64/Release
+          files-folder-filter: exe,dll
+          files-folder-recurse: true
+
+      - name: Sign x64 configuration tool
+        if: ${{ env.AZURE_TENANT_ID != '' && env.AZURE_CLIENT_ID != '' && env.AZURE_CLIENT_SECRET != '' && env.AZURE_ENDPOINT != '' && env.AZURE_CODE_SIGNING_NAME != '' && env.AZURE_CERT_PROFILE_NAME != '' }}
+        uses: Azure/trusted-signing-action@v0.5.1
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ secrets.AZURE_ENDPOINT }}
+          trusted-signing-account-name: ${{ secrets.AZURE_CODE_SIGNING_NAME }}
+          certificate-profile-name: ${{ secrets.AZURE_CERT_PROFILE_NAME }}
+          files-folder: SebWindowsConfig/bin/x64/Release
+          files-folder-filter: exe,dll
+          files-folder-recurse: true
+
+      - name: Sign x64 reset utility
+        if: ${{ env.AZURE_TENANT_ID != '' && env.AZURE_CLIENT_ID != '' && env.AZURE_CLIENT_SECRET != '' && env.AZURE_ENDPOINT != '' && env.AZURE_CODE_SIGNING_NAME != '' && env.AZURE_CERT_PROFILE_NAME != '' }}
+        uses: Azure/trusted-signing-action@v0.5.1
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ secrets.AZURE_ENDPOINT }}
+          trusted-signing-account-name: ${{ secrets.AZURE_CODE_SIGNING_NAME }}
+          certificate-profile-name: ${{ secrets.AZURE_CERT_PROFILE_NAME }}
+          files-folder: SafeExamBrowser.ResetUtility/bin/x64/Release
+          files-folder-filter: exe,dll
+          files-folder-recurse: true
+
+      - name: Sign x64 Windows service
+        if: ${{ env.AZURE_TENANT_ID != '' && env.AZURE_CLIENT_ID != '' && env.AZURE_CLIENT_SECRET != '' && env.AZURE_ENDPOINT != '' && env.AZURE_CODE_SIGNING_NAME != '' && env.AZURE_CERT_PROFILE_NAME != '' }}
+        uses: Azure/trusted-signing-action@v0.5.1
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ secrets.AZURE_ENDPOINT }}
+          trusted-signing-account-name: ${{ secrets.AZURE_CODE_SIGNING_NAME }}
+          certificate-profile-name: ${{ secrets.AZURE_CERT_PROFILE_NAME }}
+          files-folder: SafeExamBrowser.Service/bin/x64/Release
+          files-folder-filter: exe,dll
+          files-folder-recurse: true
+
+      - name: Build x86 application binaries
+        run: |
+          $env:BUILD_PLATFORM = "x86"
+          $projects = @(
+            "SafeExamBrowser.Browser\SafeExamBrowser.Browser.csproj",
+            "SafeExamBrowser.Runtime\SafeExamBrowser.Runtime.csproj",
+            "SafeExamBrowser.Client\SafeExamBrowser.Client.csproj",
+            "SebWindowsConfig\SebWindowsConfig.csproj",
+            "SafeExamBrowser.ResetUtility\SafeExamBrowser.ResetUtility.csproj",
+            "SafeExamBrowser.Service\SafeExamBrowser.Service.csproj"
+          )
+
+          foreach ($project in $projects) {
+            msbuild $project /m /p:Configuration=$env:BUILD_CONFIGURATION /p:Platform=$env:BUILD_PLATFORM /p:SignOutput=false
+          }
+        shell: pwsh
+
+      - name: Sign x86 application binaries
+        if: ${{ env.AZURE_TENANT_ID != '' && env.AZURE_CLIENT_ID != '' && env.AZURE_CLIENT_SECRET != '' && env.AZURE_ENDPOINT != '' && env.AZURE_CODE_SIGNING_NAME != '' && env.AZURE_CERT_PROFILE_NAME != '' }}
+        uses: Azure/trusted-signing-action@v0.5.1
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ secrets.AZURE_ENDPOINT }}
+          trusted-signing-account-name: ${{ secrets.AZURE_CODE_SIGNING_NAME }}
+          certificate-profile-name: ${{ secrets.AZURE_CERT_PROFILE_NAME }}
+          files-folder: SafeExamBrowser.Runtime/bin/x86/Release
+          files-folder-filter: exe,dll
+          files-folder-recurse: true
+
+      - name: Sign x86 configuration tool
+        if: ${{ env.AZURE_TENANT_ID != '' && env.AZURE_CLIENT_ID != '' && env.AZURE_CLIENT_SECRET != '' && env.AZURE_ENDPOINT != '' && env.AZURE_CODE_SIGNING_NAME != '' && env.AZURE_CERT_PROFILE_NAME != '' }}
+        uses: Azure/trusted-signing-action@v0.5.1
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ secrets.AZURE_ENDPOINT }}
+          trusted-signing-account-name: ${{ secrets.AZURE_CODE_SIGNING_NAME }}
+          certificate-profile-name: ${{ secrets.AZURE_CERT_PROFILE_NAME }}
+          files-folder: SebWindowsConfig/bin/x86/Release
+          files-folder-filter: exe,dll
+          files-folder-recurse: true
+
+      - name: Sign x86 reset utility
+        if: ${{ env.AZURE_TENANT_ID != '' && env.AZURE_CLIENT_ID != '' && env.AZURE_CLIENT_SECRET != '' && env.AZURE_ENDPOINT != '' && env.AZURE_CODE_SIGNING_NAME != '' && env.AZURE_CERT_PROFILE_NAME != '' }}
+        uses: Azure/trusted-signing-action@v0.5.1
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ secrets.AZURE_ENDPOINT }}
+          trusted-signing-account-name: ${{ secrets.AZURE_CODE_SIGNING_NAME }}
+          certificate-profile-name: ${{ secrets.AZURE_CERT_PROFILE_NAME }}
+          files-folder: SafeExamBrowser.ResetUtility/bin/x86/Release
+          files-folder-filter: exe,dll
+          files-folder-recurse: true
+
+      - name: Sign x86 Windows service
+        if: ${{ env.AZURE_TENANT_ID != '' && env.AZURE_CLIENT_ID != '' && env.AZURE_CLIENT_SECRET != '' && env.AZURE_ENDPOINT != '' && env.AZURE_CODE_SIGNING_NAME != '' && env.AZURE_CERT_PROFILE_NAME != '' }}
+        uses: Azure/trusted-signing-action@v0.5.1
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ secrets.AZURE_ENDPOINT }}
+          trusted-signing-account-name: ${{ secrets.AZURE_CODE_SIGNING_NAME }}
+          certificate-profile-name: ${{ secrets.AZURE_CERT_PROFILE_NAME }}
+          files-folder: SafeExamBrowser.Service/bin/x86/Release
+          files-folder-filter: exe,dll
+          files-folder-recurse: true
+
+      - name: Build MSI installers and setup bundle
+        run: |
+          .github\scripts\build-installer.ps1 -Configuration $env:BUILD_CONFIGURATION -Platform x64
+          .github\scripts\build-installer.ps1 -Configuration $env:BUILD_CONFIGURATION -Platform x86
+          .github\scripts\build-installer.ps1 -Configuration $env:BUILD_CONFIGURATION -Platform x64 -BuildBundle
+        shell: pwsh
+
+      - name: Sign x64 MSI
+        if: ${{ env.AZURE_TENANT_ID != '' && env.AZURE_CLIENT_ID != '' && env.AZURE_CLIENT_SECRET != '' && env.AZURE_ENDPOINT != '' && env.AZURE_CODE_SIGNING_NAME != '' && env.AZURE_CERT_PROFILE_NAME != '' }}
+        uses: Azure/trusted-signing-action@v0.5.1
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ secrets.AZURE_ENDPOINT }}
+          trusted-signing-account-name: ${{ secrets.AZURE_CODE_SIGNING_NAME }}
+          certificate-profile-name: ${{ secrets.AZURE_CERT_PROFILE_NAME }}
+          files-folder: Setup/bin/x64/Release
+          files-folder-filter: msi
+          files-folder-recurse: false
+
+      - name: Sign x86 MSI
+        if: ${{ env.AZURE_TENANT_ID != '' && env.AZURE_CLIENT_ID != '' && env.AZURE_CLIENT_SECRET != '' && env.AZURE_ENDPOINT != '' && env.AZURE_CODE_SIGNING_NAME != '' && env.AZURE_CERT_PROFILE_NAME != '' }}
+        uses: Azure/trusted-signing-action@v0.5.1
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ secrets.AZURE_ENDPOINT }}
+          trusted-signing-account-name: ${{ secrets.AZURE_CODE_SIGNING_NAME }}
+          certificate-profile-name: ${{ secrets.AZURE_CERT_PROFILE_NAME }}
+          files-folder: Setup/bin/x86/Release
+          files-folder-filter: msi
+          files-folder-recurse: false
+
+      - name: Sign setup bundle
+        if: ${{ env.AZURE_TENANT_ID != '' && env.AZURE_CLIENT_ID != '' && env.AZURE_CLIENT_SECRET != '' && env.AZURE_ENDPOINT != '' && env.AZURE_CODE_SIGNING_NAME != '' && env.AZURE_CERT_PROFILE_NAME != '' }}
+        uses: Azure/trusted-signing-action@v0.5.1
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ secrets.AZURE_ENDPOINT }}
+          trusted-signing-account-name: ${{ secrets.AZURE_CODE_SIGNING_NAME }}
+          certificate-profile-name: ${{ secrets.AZURE_CERT_PROFILE_NAME }}
+          files-folder: SetupBundle/bin/x64/Release
+          files-folder-filter: exe
+          files-folder-recurse: false
+
+      - name: Create release archives and checksums
+        run: |
+          New-Item -ItemType Directory -Force -Path artifacts | Out-Null
+
+          Compress-Archive -Path "SafeExamBrowser.Runtime\bin\x64\Release\*" -DestinationPath "artifacts\Xolock-Windows-x64-portable.zip" -Force
+          Compress-Archive -Path @(
+            "Setup\bin\x64\Release\Setup.msi",
+            "Setup\bin\x86\Release\Setup.msi",
+            "SetupBundle\bin\x64\Release\SetupBundle.exe"
+          ) -DestinationPath "artifacts\Xolock-Windows-Installers.zip" -Force
+
+          Get-ChildItem artifacts -File |
+            Get-FileHash -Algorithm SHA256 |
+            ForEach-Object { "$($_.Hash)  $([IO.Path]::GetFileName($_.Path))" } |
+            Set-Content artifacts\SHA256SUMS.txt
+
+          Get-ChildItem artifacts
+          Get-Content artifacts\SHA256SUMS.txt
+        shell: pwsh
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: xolock-windows-release
+          path: artifacts/*
+          if-no-files-found: error
+
+      - name: Google Auth
+        if: ${{ env.GCP_SA_KEY != '' && env.GCS_BUCKET_NAME != '' && (github.event_name != 'workflow_dispatch' || inputs.publish_to_gcs) }}
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        if: ${{ env.GCP_SA_KEY != '' && env.GCS_BUCKET_NAME != '' && (github.event_name != 'workflow_dispatch' || inputs.publish_to_gcs) }}
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Upload artifacts to Google Cloud Storage
+        if: ${{ env.GCP_SA_KEY != '' && env.GCS_BUCKET_NAME != '' && (github.event_name != 'workflow_dispatch' || inputs.publish_to_gcs) }}
+        uses: google-github-actions/upload-cloud-storage@v2
+        with:
+          path: artifacts
+          destination: ${{ secrets.GCS_BUCKET_NAME }}
+          parent: false
+
+      - name: Create GitHub release
+        if: ${{ startsWith(github.ref, 'refs/tags/v') && (github.event_name != 'workflow_dispatch' || inputs.create_github_release) }}
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          generate_release_notes: true
