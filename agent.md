@@ -23,6 +23,7 @@ The active branch for this work is `xolock-refactoring`.
 - `SetupBundle` is the WiX bootstrapper bundle project.
 - `.github/workflows` contains CI, release, CodeQL, and issue maintenance workflows.
 - `.github/scripts/build-installer.ps1` is the GitHub Actions WiX packaging helper.
+- `.github/scripts/restore-integrity-module.ps1` restores native integrity DLLs from GitHub secrets into `C:\SEB` before MSBuild.
 - `.github/SECRETS.md` documents required repository secrets.
 
 ## Build System Overview
@@ -66,14 +67,15 @@ The .NET equivalent is:
 1. Checkout.
 2. Set up NuGet/MSBuild and cache `packages/`.
 3. Restore `packages.config` dependencies.
-4. Build .NET Framework application projects.
-5. Run MSTest unit tests for CI.
-6. Sign built EXE/DLL outputs with Azure Trusted Signing in release runs.
-7. Harvest signed outputs into WiX MSI packages.
-8. Build WiX bootstrapper bundle.
-9. Sign MSI and bundle artifacts.
-10. Create portable and installer ZIP archives plus `SHA256SUMS.txt`.
-11. Upload GitHub Actions artifacts, optionally upload to GCS, and create GitHub Releases on `v*.*.*` tags.
+4. Restore native integrity modules into `C:\SEB`.
+5. Build .NET Framework application projects.
+6. Run MSTest unit tests for CI.
+7. Sign built EXE/DLL outputs with Azure Trusted Signing in release runs.
+8. Harvest signed outputs into WiX MSI packages.
+9. Build WiX bootstrapper bundle.
+10. Sign MSI and bundle artifacts.
+11. Create portable and installer ZIP archives plus `SHA256SUMS.txt`.
+12. Upload GitHub Actions artifacts, optionally upload to GCS, and create GitHub Releases on `v*.*.*` tags.
 
 ## Workflow Purposes
 
@@ -117,11 +119,23 @@ Google Cloud Storage:
 - `GCP_SA_KEY`
 - `GCS_BUCKET_NAME`
 
+Native integrity modules, preferably from private download URLs:
+
+- `SEB_INTEGRITY_X64_URL`
+- `SEB_INTEGRITY_X86_URL`
+- `SEB_INTEGRITY_DOWNLOAD_TOKEN`
+
+Fallback native integrity module secrets, only if the DLLs fit GitHub secret limits:
+
+- `SEB_INTEGRITY_X64_DLL_BASE64`
+- `SEB_INTEGRITY_X86_DLL_BASE64`
+
 `GITHUB_TOKEN` is provided by GitHub Actions and is used for issue maintenance and GitHub Releases.
 
 ## Important Scripts
 
 - `.github/scripts/build-installer.ps1` locates `heat.exe` and `msbuild.exe`, regenerates WiX component fragments from application output directories, builds `Setup.wixproj`, and optionally builds `SetupBundle.wixproj`.
+- `.github/scripts/restore-integrity-module.ps1` downloads `SEB_INTEGRITY_X64_URL` and `SEB_INTEGRITY_X86_URL`, or decodes the base64 fallback secrets, into `C:\SEB\seb_x64.dll` and `C:\SEB\seb_x86.dll`. Release workflow uses `-Required` so installers are not produced without the modules.
 - `generate-branding.ps1` is a local branding helper from prior rebranding work. Do not run it casually because it may overwrite image assets.
 
 ## Common Maintenance Tasks
@@ -129,6 +143,7 @@ Google Cloud Storage:
 - Keep package cache keys tied to `packages.config`, `.csproj`, and `.sln` changes.
 - If adding a new deployable executable, include it in the release build and signing stages.
 - If changing WiX component layout, update `.github/scripts/build-installer.ps1` to harvest the correct directories.
+- If release builds abort with `Integrity module is not available!`, verify the integrity module secrets exist and were restored before MSBuild.
 - If changing branch strategy, update `ci.yml`, `release.yml`, and `codeql.yml` together.
 - If adding new required secrets, update `.github/SECRETS.md` and this file.
 
@@ -136,7 +151,7 @@ Google Cloud Storage:
 
 - The solution and many namespaces remain `SafeExamBrowser.*`; renaming them is high risk and not required for Xolock branding.
 - `.seb`, `seb://`, `sebs://`, SEB-Server, and SEB Verificator references may be compatibility surfaces and should not be blindly renamed.
-- Production integrity requires native modules under `C:\SEB\seb_x64.dll` and/or `C:\SEB\seb_x86.dll`.
+- Production integrity requires native modules under `C:\SEB\seb_x64.dll` and `C:\SEB\seb_x86.dll` during release builds. GitHub Actions restores them from private URLs or base64 fallback secrets before packaging.
 - WiX bundle creation expects both x64 and x86 MSI outputs.
 - GitHub-hosted runners need WiX installed before packaging.
 - The app is Windows-only; use `windows-latest` for build/release jobs.
