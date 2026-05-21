@@ -38,6 +38,24 @@ $heat = Resolve-Tool "heat.exe" @(
 
 $msbuild = Resolve-Tool "msbuild.exe" @()
 
+function Ensure-IntegrityModule([string] $OutputPath) {
+    $fileName = "seb_$Platform.dll"
+    $targetPath = Join-Path $OutputPath $fileName
+    $sourcePath = Join-Path "C:\SEB" $fileName
+
+    if (Test-Path $targetPath) {
+        return
+    }
+
+    if (Test-Path $sourcePath) {
+        Copy-Item $sourcePath $targetPath -Force
+        Write-Host "Copied $fileName to $OutputPath."
+        return
+    }
+
+    throw "Missing native integrity module: $targetPath. Ensure restore-integrity-module.ps1 ran successfully and provides $sourcePath before building installers."
+}
+
 $outputs = @{
     "Application" = @{
         Source = Join-Path $repoRoot "SafeExamBrowser.Runtime\bin\$Platform\$Configuration"
@@ -76,6 +94,10 @@ $outputs = @{
 foreach ($item in $outputs.GetEnumerator()) {
     if (-not (Test-Path $item.Value.Source)) {
         throw "Expected build output not found for $($item.Key): $($item.Value.Source)"
+    }
+
+    if ($item.Key -in @("Application", "Configuration")) {
+        Ensure-IntegrityModule $item.Value.Source
     }
 
     & $heat dir $item.Value.Source `

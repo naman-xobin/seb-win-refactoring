@@ -92,6 +92,32 @@ jobs:
           }
         shell: pwsh
 
+      - name: Ensure x64 native integrity module in outputs
+        run: |
+          $dll = "seb_x64.dll"
+          $source = "C:\SEB\$dll"
+          $outputs = @(
+            "SafeExamBrowser.Runtime\bin\x64\$env:BUILD_CONFIGURATION",
+            "SebWindowsConfig\bin\x64\$env:BUILD_CONFIGURATION"
+          )
+
+          if (-not (Test-Path $source)) {
+            throw "Missing native integrity module: $source"
+          }
+
+          foreach ($output in $outputs) {
+            if (-not (Test-Path $output)) {
+              throw "Expected build output not found: $output"
+            }
+
+            $target = Join-Path $output $dll
+            if (-not (Test-Path $target)) {
+              Copy-Item $source $target -Force
+              Write-Host "Copied $dll to $output."
+            }
+          }
+        shell: pwsh
+
       - name: Sign x64 application binaries
         if: ${{ env.AZURE_TENANT_ID != '' && env.AZURE_CLIENT_ID != '' && env.AZURE_CLIENT_SECRET != '' && env.AZURE_ENDPOINT != '' && env.AZURE_CODE_SIGNING_NAME != '' && env.AZURE_CERT_PROFILE_NAME != '' }}
         uses: Azure/trusted-signing-action@v0.5.1
@@ -162,6 +188,32 @@ jobs:
 
           foreach ($project in $projects) {
             msbuild $project /m /p:Configuration=$env:BUILD_CONFIGURATION /p:Platform=$env:BUILD_PLATFORM /p:SignOutput=false
+          }
+        shell: pwsh
+
+      - name: Ensure x86 native integrity module in outputs
+        run: |
+          $dll = "seb_x86.dll"
+          $source = "C:\SEB\$dll"
+          $outputs = @(
+            "SafeExamBrowser.Runtime\bin\x86\$env:BUILD_CONFIGURATION",
+            "SebWindowsConfig\bin\x86\$env:BUILD_CONFIGURATION"
+          )
+
+          if (-not (Test-Path $source)) {
+            throw "Missing native integrity module: $source"
+          }
+
+          foreach ($output in $outputs) {
+            if (-not (Test-Path $output)) {
+              throw "Expected build output not found: $output"
+            }
+
+            $target = Join-Path $output $dll
+            if (-not (Test-Path $target)) {
+              Copy-Item $source $target -Force
+              Write-Host "Copied $dll to $output."
+            }
           }
         shell: pwsh
 
