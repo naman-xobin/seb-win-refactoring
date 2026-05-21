@@ -32,6 +32,11 @@ env:
   AZURE_CERT_PROFILE_NAME: ${{ secrets.AZURE_CERT_PROFILE_NAME }}
   GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
   GCS_BUCKET_NAME: ${{ secrets.GCS_BUCKET_NAME }}
+  SEB_INTEGRITY_X64_URL: ${{ secrets.SEB_INTEGRITY_X64_URL }}
+  SEB_INTEGRITY_X86_URL: ${{ secrets.SEB_INTEGRITY_X86_URL }}
+  SEB_INTEGRITY_DOWNLOAD_TOKEN: ${{ secrets.SEB_INTEGRITY_DOWNLOAD_TOKEN }}
+  SEB_INTEGRITY_X64_DLL_BASE64: ${{ secrets.SEB_INTEGRITY_X64_DLL_BASE64 }}
+  SEB_INTEGRITY_X86_DLL_BASE64: ${{ secrets.SEB_INTEGRITY_X86_DLL_BASE64 }}
 
 jobs:
   release:
@@ -64,6 +69,10 @@ jobs:
 
       - name: Restore packages
         run: nuget restore SafeExamBrowser.sln -NonInteractive
+        shell: pwsh
+
+      - name: Restore native integrity modules
+        run: .github\scripts\restore-integrity-module.ps1 -Required
         shell: pwsh
 
       - name: Build x64 application binaries
